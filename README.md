@@ -1,10 +1,8 @@
 # ITRN 2026 Verona 12-13 Feb
-# Pre-congress' workshops Quarto Code & HTML Slides 
-Materials and slides by Giulia Calignano on
-
-🔗 [Preregistration](https://caligiu.github.io/ITRN2026_workshop/index.html)
-
-🔗 [Open Data and Code](https://caligiu.github.io/ITRN2026_workshop/Opencode/index.html#/title-slide)
+# Quarto Code & HTML Slides 
+Materials and slides by Giulia Calignano for the workshops:
+🔗 [Preregistration](https://caligiu.github.io/ITRN2026_workshop/Preregistration/)
+🔗  [OPEN_Data_Code_Team](https://caligiu.github.io/ITRN2026_workshop/Open_Data_Code_Team/)
 
 
 ## Event Details

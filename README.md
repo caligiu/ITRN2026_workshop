@@ -6,8 +6,6 @@ Materials and slides for the workshop
 
 
 ## Event Details
-🔗 [Annual Meeting ITRN 2026]([https://caligiu.github.io/MultiverseWorkshopMB/Wslide/Index.html#/title-slide](https://www.itrn.org/itrn-scientific-events/itrn-annual-meeting)
-
-
+🔗 [Annual Meeting ITRN 2026](https://www.itrn.org/itrn-scientific-events/itrn-annual-meeting)
 
 

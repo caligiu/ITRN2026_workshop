@@ -1,4 +1,4 @@
-# ITRN 2026 Verona 12-13 Feb.
+# ITRN 2026 Verona 12-13 Feb
 # Pre-congress' workshops Quarto Code & HTML Slides 
 Materials and slides by Giulia Calignano on
 

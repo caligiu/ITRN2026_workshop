@@ -1,7 +1,9 @@
 # ITRN2026_workshop
 # Quarto Code & HTML Slides
-Materials and slides for the workshop 
+Materials and slides for the pre-congress' workshops on
+
 🔗 [Preregistration](https://caligiu.github.io/ITRN2026_workshop/Preregistration/index.html#/title-slide)
+
 🔗 [Open Data and Code](https://caligiu.github.io/ITRN2026_workshop/Opencode/Index.html#/title-slide)
 
 

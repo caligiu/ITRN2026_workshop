@@ -1,5 +1,5 @@
 ---
-title: "Preregistration & Registered Reports"
+title: "Workshop: Preregistration & Registered Reports"
 authors: "Giulia Calignano - ITRN 2026"
 format: 
   revealjs:
@@ -7,7 +7,13 @@ format:
     embed-resources: true
     center: true
     smaller: true
-    css: custom.css
+    slide-number: true
+    incremental: true
+    transition: slide
+    self-contained: true
+    progress: true
+editor: visual
+lang: en
 ---
 
 ## Traditional Workflow
@@ -292,6 +298,7 @@ kable(prereg_types, format = "markdown")
 ---
 
 **These examples show the diversity of preregistration approaches: single-lab clinical studies, secondary data analysis, large collaborative projects (ManyBabies), and published multilab studies. Each demonstrates how preregistration adapts to different research contexts.**
+
 
 
 

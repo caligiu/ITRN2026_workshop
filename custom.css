@@ -1,0 +1,14 @@
+/* Logo come sfondo su tutte le slide */
+  .reveal .slide-background {
+    background-image: url('logo.png') !important;
+    background-repeat: no-repeat !important;
+    background-position: 95% 95% !important;
+    background-size: 1250px !important;
+    opacity: 0.05 !important;
+  }
+
+
+/* Miglioramenti extra per leggibilità */
+  .reveal .slide-background-content {
+    opacity: 0.95;
+  }

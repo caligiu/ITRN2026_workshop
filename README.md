@@ -1,6 +1,6 @@
-# ITRN2026_workshop
-# Quarto Code & HTML Slides
-Materials and slides for the pre-congress' workshops on
+# ITRN2026 Pre-congress' workshops ù
+# Quarto Code & HTML Slides 
+Materials and slides for the pre-congress' workshops by Giulia Calignano on
 
 🔗 [Preregistration](https://caligiu.github.io/ITRN2026_workshop/Preregistration/Index.html)
 

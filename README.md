@@ -2,7 +2,7 @@
 # Pre-congress' workshops Quarto Code & HTML Slides 
 Materials and slides by Giulia Calignano on
 
-🔗 [Preregistration](https://caligiu.github.io/ITRN2026_workshop/Preregistration/index.html#/title-slide)
+🔗 [Preregistration](https://caligiu.github.io/ITRN2026_workshop/index.html#/title-slide)
 
 🔗 [Open Data and Code](https://caligiu.github.io/ITRN2026_workshop/Opencode/index.html#/title-slide)
 

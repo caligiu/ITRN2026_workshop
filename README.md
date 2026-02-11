@@ -5,7 +5,7 @@ Materials and slides by Giulia Calignano for the workshops:
 
 - [Pagina introduttiva](https://caligiu.github.io/ITRN2026_workshop/)
 🔗 [Preregistration Slides](https://caligiu.github.io/ITRN2026_workshop/docs/)
-🔗  [OPEN_Data_Code_Team](https://caligiu.github.io/ITRN2026_workshop/Open_Data_Code_Team/)
+🔗  [OPEN_Data_Code_Team](https://pnslhg-giulia-calignano.shinyapps.io/open_itrnworkshop/)
 
 
 ## Event Details

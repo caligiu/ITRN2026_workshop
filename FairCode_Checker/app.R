@@ -3,7 +3,8 @@ library(shiny)
 library(shinyjs)
 library(shinydashboard)
 library(shinyAce)
-library(httr)  
+library(httr)  # For DOI and ORCID validation
+library(jsonlite)  # For parsing ORCID API responses
 
 # Function to validate DOI
 validate_doi <- function(doi) {
@@ -49,6 +50,100 @@ validate_doi <- function(doi) {
   })
 }
 
+# Function to validate ORCID
+validate_orcid <- function(orcid) {
+  # Extract ORCID if it's a full URL
+  orcid_pattern <- "\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]"
+  orcid_match <- regmatches(orcid, regexpr(orcid_pattern, orcid))
+  
+  if(length(orcid_match) == 0) {
+    return(list(valid = FALSE, message = "Invalid ORCID format"))
+  }
+  
+  orcid_clean <- orcid_match[1]
+  
+  # Validate ORCID checksum
+  if(!validate_orcid_checksum(orcid_clean)) {
+    return(list(
+      valid = FALSE,
+      message = paste0("❌ Invalid ORCID checksum: ", orcid_clean)
+    ))
+  }
+  
+  # Try to verify ORCID exists using ORCID public API
+  tryCatch({
+    response <- httr::GET(
+      paste0("https://pub.orcid.org/v3.0/", orcid_clean),
+      httr::accept("application/json"),
+      httr::timeout(5)
+    )
+    
+    if(response$status_code == 200) {
+      # Try to extract name from response
+      content <- httr::content(response, as = "text", encoding = "UTF-8")
+      data <- jsonlite::fromJSON(content, simplifyVector = FALSE)
+      
+      name <- "Unknown"
+      if(!is.null(data$person$name)) {
+        given <- data$person$name$`given-names`$value
+        family <- data$person$name$`family-name`$value
+        if(!is.null(given) && !is.null(family)) {
+          name <- paste(given, family)
+        }
+      }
+      
+      return(list(
+        valid = TRUE, 
+        message = paste0("✅ Valid ORCID: ", orcid_clean, " (", name, ")"),
+        orcid = orcid_clean,
+        name = name
+      ))
+    } else if(response$status_code == 404) {
+      return(list(
+        valid = FALSE, 
+        message = paste0("❌ ORCID not found: ", orcid_clean)
+      ))
+    } else {
+      return(list(
+        valid = FALSE, 
+        message = paste0("⚠️ Cannot verify ORCID (status: ", response$status_code, ")")
+      ))
+    }
+  }, error = function(e) {
+    return(list(
+      valid = FALSE, 
+      message = paste0("⚠️ Error checking ORCID: ", e$message)
+    ))
+  })
+}
+
+# Function to validate ORCID checksum (based on ISO 7064 mod 11-2)
+validate_orcid_checksum <- function(orcid) {
+  # Remove hyphens
+  orcid_digits <- gsub("-", "", orcid)
+  
+  # Check length
+  if(nchar(orcid_digits) != 16) return(FALSE)
+  
+  # Get base digits (first 15) and check digit (last)
+  base_digits <- substr(orcid_digits, 1, 15)
+  check_char <- substr(orcid_digits, 16, 16)
+  
+  # Calculate checksum
+  total <- 0
+  for(i in 1:15) {
+    digit <- as.integer(substr(base_digits, i, i))
+    total <- (total + digit) * 2
+  }
+  
+  remainder <- total %% 11
+  result <- (12 - remainder) %% 11
+  
+  expected_check <- ifelse(result == 10, "X", as.character(result))
+  
+  return(check_char == expected_check)
+}
+
 # Define UI
 ui <- dashboardPage(
   dashboardHeader(title = "ITalianReproducibilityNetwork - FAIR Principles Learning App"),
@@ -77,11 +172,11 @@ ui <- dashboardPage(
         .accessible { background-color: #28a745; color: white; }
         .interoperable { background-color: #ffc107; color: black; }
         .reusable { background-color: #17a2b8; color: white; }
-        .doi-validation { padding: 10px; margin: 10px 0; border-radius: 5px; 
+        .validation-box { padding: 10px; margin: 10px 0; border-radius: 5px; 
                          border-left: 4px solid; }
-        .doi-valid { background-color: #d4edda; border-color: #28a745; }
-        .doi-invalid { background-color: #f8d7da; border-color: #dc3545; }
-        .doi-warning { background-color: #fff3cd; border-color: #ffc107; }
+        .validation-valid { background-color: #d4edda; border-color: #28a745; }
+        .validation-invalid { background-color: #f8d7da; border-color: #dc3545; }
+        .validation-warning { background-color: #fff3cd; border-color: #ffc107; }
       "))
     ),
     
@@ -296,7 +391,7 @@ print(x)",
                 <h5>Make sure your code includes:</h5>
                 <ul>
                   <li>📋 Title and description</li>
-                  <li>👤 Author with ORCID</li>
+                  <li>👤 Author with ORCID (validated)</li>
                   <li>📅 Date</li>
                   <li>⚖️ License (e.g., MIT, GPL, CC-BY)</li>
                   <li>🔗 DOI or persistent identifier (validated)</li>
@@ -329,6 +424,14 @@ print(x)",
                            target = "_blank", "Original FAIR Paper (Nature)")),
             tags$li(tags$a(href = "https://fairsharing.org/", 
                            target = "_blank", "FAIRsharing - Standards & Databases"))
+          ),
+          
+          h4("Persistent Identifiers"),
+          tags$ul(
+            tags$li(tags$a(href = "https://orcid.org/", 
+                           target = "_blank", "ORCID - Researcher Identifiers")),
+            tags$li(tags$a(href = "https://www.doi.org/", 
+                           target = "_blank", "DOI - Digital Object Identifiers"))
           ),
           
           h4("FAIR Assessment Tools"),
@@ -377,6 +480,29 @@ print(x)",
       
       fluidRow(
         box(
+          title = "Validate Identifiers",
+          width = 12,
+          status = "info",
+          solidHeader = TRUE,
+          
+          h4("Validate DOI"),
+          textInput("validate_doi_input", "Enter a DOI:", 
+                    placeholder = "e.g., 10.5281/zenodo.1234567"),
+          actionButton("validate_doi_btn", "Validate DOI", class = "btn-info"),
+          uiOutput("doi_validation_output"),
+          
+          hr(),
+          
+          h4("Validate ORCID"),
+          textInput("validate_orcid_input", "Enter an ORCID:", 
+                    placeholder = "e.g., 0000-0001-2345-6789"),
+          actionButton("validate_orcid_btn", "Validate ORCID", class = "btn-info"),
+          uiOutput("orcid_validation_output")
+        )
+      ),
+      
+      fluidRow(
+        box(
           title = "Evaluate Others' Work",
           width = 12,
           status = "info",
@@ -417,17 +543,29 @@ server <- function(input, output, session) {
     doi_matches <- regmatches(code, gregexpr(doi_pattern, code))
     has_doi <- length(doi_matches[[1]]) > 0
     
+    # Extract ORCID if present
+    orcid_pattern <- "\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]"
+    orcid_matches <- regmatches(code, gregexpr(orcid_pattern, code))
+    has_orcid <- length(orcid_matches[[1]]) > 0
+    
     # Validate DOI if present
     doi_validation <- NULL
     if(has_doi) {
       doi_validation <- validate_doi(doi_matches[[1]][1])
     }
     
+    # Validate ORCID if present
+    orcid_validation <- NULL
+    if(has_orcid) {
+      orcid_validation <- validate_orcid(orcid_matches[[1]][1])
+    }
+    
     # Check for FAIR elements
     checks <- list(
       title = grepl("(?i)title", code),
       author = grepl("(?i)author", code),
-      orcid = grepl("(?i)orcid", code) || grepl("\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]", code),
+      orcid = has_orcid,
+      orcid_valid = if(has_orcid) orcid_validation$valid else FALSE,
       date = grepl("(?i)date", code),
       license = grepl("(?i)license", code),
       doi = has_doi,
@@ -438,15 +576,18 @@ server <- function(input, output, session) {
       description = grepl("(?i)description:", code)
     )
     
-    # Calculate score (DOI validity is bonus, not required for base score)
-    base_checks <- checks[!names(checks) %in% c("doi_valid")]
+    # Calculate score (validity is bonus, not required for base score)
+    base_checks <- checks[!names(checks) %in% c("doi_valid", "orcid_valid")]
     passed <- sum(unlist(base_checks))
     total <- length(base_checks)
     score <- round((passed / total) * 100)
     
-    # Bonus points for valid DOI
+    # Bonus points for valid identifiers
     if(checks$doi && checks$doi_valid) {
-      score <- min(100, score + 5)
+      score <- min(100, score + 3)
+    }
+    if(checks$orcid && checks$orcid_valid) {
+      score <- min(100, score + 3)
     }
     
     output$feedback_output <- renderUI({
@@ -474,10 +615,22 @@ server <- function(input, output, session) {
         feedback_html <- paste0(feedback_html, "<li class='feedback-error'>❌ Add author information (# Author: ...)</li>")
       }
       
+      # ORCID validation feedback
       if(checks$orcid) {
-        feedback_html <- paste0(feedback_html, "<li class='feedback-success'>✅ ORCID found</li>")
+        if(checks$orcid_valid) {
+          feedback_html <- paste0(feedback_html, 
+                                  "<li class='feedback-success'>✅ ORCID found and validated: ", 
+                                  orcid_validation$orcid, 
+                                  if(!is.null(orcid_validation$name)) paste0(" (", orcid_validation$name, ")") else "",
+                                  " 🎉</li>")
+        } else {
+          feedback_html <- paste0(feedback_html, 
+                                  "<li class='feedback-warning'>⚠️ ORCID found but ", 
+                                  orcid_validation$message, "</li>")
+        }
       } else {
-        feedback_html <- paste0(feedback_html, "<li class='feedback-error'>❌ Add ORCID (# ORCID: 0000-0001-2345-6789)</li>")
+        feedback_html <- paste0(feedback_html, 
+                                "<li class='feedback-error'>❌ Add ORCID (# ORCID: 0000-0001-2345-6789)</li>")
       }
       
       if(checks$date) {
@@ -534,12 +687,22 @@ server <- function(input, output, session) {
       
       feedback_html <- paste0(feedback_html, "</ul>")
       
-      # Add DOI validation details if present
-      if(has_doi && !is.null(doi_validation)) {
-        doi_class <- if(doi_validation$valid) "doi-valid" else if(grepl("Cannot verify", doi_validation$message)) "doi-warning" else "doi-invalid"
+      # Add validation details if present
+      if(has_orcid && !is.null(orcid_validation)) {
+        orcid_class <- if(orcid_validation$valid) "validation-valid" else if(grepl("Cannot verify", orcid_validation$message)) "validation-warning" else "validation-invalid"
         feedback_html <- paste0(
           feedback_html,
-          "<div class='doi-validation ", doi_class, "'>",
+          "<div class='validation-box ", orcid_class, "'>",
+          "<strong>ORCID Validation:</strong> ", orcid_validation$message,
+          "</div>"
+        )
+      }
+      
+      if(has_doi && !is.null(doi_validation)) {
+        doi_class <- if(doi_validation$valid) "validation-valid" else if(grepl("Cannot verify", doi_validation$message)) "validation-warning" else "validation-invalid"
+        feedback_html <- paste0(
+          feedback_html,
+          "<div class='validation-box ", doi_class, "'>",
           "<strong>DOI Validation:</strong> ", doi_validation$message,
           "</div>"
         )
@@ -581,6 +744,57 @@ server <- function(input, output, session) {
     })
   })
   
+  # Validate DOI button
+  observeEvent(input$validate_doi_btn, {
+    doi <- input$validate_doi_input
+    
+    if(doi == "") {
+      output$doi_validation_output <- renderUI({
+        HTML("<p class='text-danger'>Please enter a DOI.</p>")
+      })
+      return()
+    }
+    
+    validation <- validate_doi(doi)
+    
+    output$doi_validation_output <- renderUI({
+      val_class <- if(validation$valid) "validation-valid" else if(grepl("Cannot verify", validation$message)) "validation-warning" else "validation-invalid"
+      
+      HTML(paste0(
+        "<div class='validation-box ", val_class, "' style='margin-top: 15px;'>",
+        validation$message,
+        "</div>"
+      ))
+    })
+  })
+  
+  # Validate ORCID button
+  observeEvent(input$validate_orcid_btn, {
+    orcid <- input$validate_orcid_input
+    
+    if(orcid == "") {
+      output$orcid_validation_output <- renderUI({
+        HTML("<p class='text-danger'>Please enter an ORCID.</p>")
+      })
+      return()
+    }
+    
+    validation <- validate_orcid(orcid)
+    
+    output$orcid_validation_output <- renderUI({
+      val_class <- if(validation$valid) "validation-valid" else if(grepl("Cannot verify", validation$message)) "validation-warning" else "validation-invalid"
+      
+      HTML(paste0(
+        "<div class='validation-box ", val_class, "' style='margin-top: 15px;'>",
+        validation$message,
+        if(validation$valid && !is.null(validation$name)) {
+          paste0("<br><small>Researcher: ", validation$name, "</small>")
+        } else "",
+        "</div>"
+      ))
+    })
+  })
+  
   # Evaluate external work
   observeEvent(input$evaluate_external, {
     url <- input$eval_url
@@ -591,7 +805,10 @@ server <- function(input, output, session) {
       }
       
       # Check if it's a DOI
-      doi_validation <- validate_doi(url)
+      doi_validation <- NULL
+      if(grepl("10\\.\\d{4,}/", url)) {
+        doi_validation <- validate_doi(url)
+      }
       
       eval_html <- paste0(
         "<div class='alert alert-info'>",
@@ -599,11 +816,11 @@ server <- function(input, output, session) {
       )
       
       # Add DOI validation if applicable
-      if(grepl("10\\.\\d{4,}/", url)) {
-        doi_class <- if(doi_validation$valid) "doi-valid" else if(grepl("Cannot verify", doi_validation$message)) "doi-warning" else "doi-invalid"
+      if(!is.null(doi_validation)) {
+        doi_class <- if(doi_validation$valid) "validation-valid" else if(grepl("Cannot verify", doi_validation$message)) "validation-warning" else "validation-invalid"
         eval_html <- paste0(
           eval_html,
-          "<div class='doi-validation ", doi_class, "' style='margin: 15px 0;'>",
+          "<div class='validation-box ", doi_class, "' style='margin: 15px 0;'>",
           "<strong>DOI Validation:</strong> ", doi_validation$message,
           "</div>"
         )
@@ -615,6 +832,7 @@ server <- function(input, output, session) {
         "<h6><span class='principle-tag findable'>Findable</span></h6>",
         "<ul>",
         "<li>Does it have a unique identifier (DOI, Handle)?</li>",
+        "<li>Are authors identified with ORCID?</li>",
         "<li>Is there rich metadata describing the content?</li>",
         "<li>Is it registered in a searchable resource?</li>",
         "</ul>",

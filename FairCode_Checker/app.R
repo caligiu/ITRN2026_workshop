@@ -363,12 +363,12 @@ server <- function(input, output, session) {
     
     # Check for FAIR elements
     checks <- list(
-      title = grepl("(?i)title:", code),
-      author = grepl("(?i)author:", code),
-      orcid = grepl("(?i)orcid:", code) || grepl("\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]", code),
-      date = grepl("(?i)date:", code),
-      license = grepl("(?i)license:", code),
-      doi = grepl("(?i)doi:", code) || grepl("10\\.\\d{4,}/", code),
+      title = grepl("(?i)title", code),
+      author = grepl("(?i)author", code),
+      orcid = grepl("(?i)orcid", code) || grepl("\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]", code),
+      date = grepl("(?i)date", code),
+      license = grepl("(?i)license", code),
+      doi = grepl("(?i)doi", code) || grepl("10\\.\\d{4,}/", code),
       dependencies = grepl("(?i)(dependencies|library\\(|require\\()", code),
       comments = grepl("#.*[a-zA-Z]{10,}", code),
       url = grepl("(https?://|doi\\.org)", code),

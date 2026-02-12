@@ -3,6 +3,51 @@ library(shiny)
 library(shinyjs)
 library(shinydashboard)
 library(shinyAce)
+library(httr)  
+
+# Function to validate DOI
+validate_doi <- function(doi) {
+  # Extract DOI if it's a full URL
+  doi_pattern <- "10\\.\\d{4,}/[-._;()/:A-Za-z0-9]+"
+  doi_match <- regmatches(doi, regexpr(doi_pattern, doi))
+  
+  if(length(doi_match) == 0) {
+    return(list(valid = FALSE, message = "Invalid DOI format"))
+  }
+  
+  doi_clean <- doi_match[1]
+  
+  # Try to resolve DOI using dx.doi.org
+  tryCatch({
+    response <- httr::HEAD(
+      paste0("https://doi.org/", doi_clean),
+      httr::timeout(5)
+    )
+    
+    if(response$status_code == 200) {
+      return(list(
+        valid = TRUE, 
+        message = paste0("✅ Valid DOI: ", doi_clean),
+        doi = doi_clean
+      ))
+    } else if(response$status_code == 404) {
+      return(list(
+        valid = FALSE, 
+        message = paste0("❌ DOI not found: ", doi_clean)
+      ))
+    } else {
+      return(list(
+        valid = FALSE, 
+        message = paste0("⚠️ Cannot verify DOI (status: ", response$status_code, ")")
+      ))
+    }
+  }, error = function(e) {
+    return(list(
+      valid = FALSE, 
+      message = paste0("⚠️ Error checking DOI: ", e$message)
+    ))
+  })
+}
 
 # Define UI
 ui <- dashboardPage(
@@ -25,12 +70,18 @@ ui <- dashboardPage(
         .unfair-box { background-color: #f8d7da; padding: 10px; border-radius: 5px; margin: 10px 0; }
         .feedback-success { color: #28a745; font-weight: bold; }
         .feedback-error { color: #dc3545; font-weight: bold; }
+        .feedback-warning { color: #ffc107; font-weight: bold; }
         .principle-tag { display: inline-block; padding: 3px 8px; margin: 2px; 
                         border-radius: 3px; font-size: 12px; }
         .findable { background-color: #007bff; color: white; }
         .accessible { background-color: #28a745; color: white; }
         .interoperable { background-color: #ffc107; color: black; }
         .reusable { background-color: #17a2b8; color: white; }
+        .doi-validation { padding: 10px; margin: 10px 0; border-radius: 5px; 
+                         border-left: 4px solid; }
+        .doi-valid { background-color: #d4edda; border-color: #28a745; }
+        .doi-invalid { background-color: #f8d7da; border-color: #dc3545; }
+        .doi-warning { background-color: #fff3cd; border-color: #ffc107; }
       "))
     ),
     
@@ -248,7 +299,7 @@ print(x)",
                   <li>👤 Author with ORCID</li>
                   <li>📅 Date</li>
                   <li>⚖️ License (e.g., MIT, GPL, CC-BY)</li>
-                  <li>🔗 DOI or persistent identifier</li>
+                  <li>🔗 DOI or persistent identifier (validated)</li>
                   <li>📦 Required packages listed</li>
                   <li>💬 Meaningful comments</li>
                   <li>🌐 Accessible data source (URL/DOI)</li>
@@ -286,7 +337,7 @@ print(x)",
                            target = "_blank", "FAIR-Checker - Evaluate Dataset FAIRness")),
             tags$li(tags$a(href = "https://www.fairsfair.eu/f-uji-automated-fair-data-assessment-tool", 
                            target = "_blank", "F-UJI - Automated FAIR Assessment")),
-            tags$li(tags$a(href =  "https://ardc.edu.au/resources/working-with-data/fair-data/fair-self-assessment-tool/", 
+            tags$li(tags$a(href = "https://ardc.edu.au/resources/working-with-data/fair-data/fair-self-assessment-tool/", 
                            target = "_blank", "ARDC FAIR Data Self Assessment Tool"))
           ),
           
@@ -361,6 +412,17 @@ server <- function(input, output, session) {
   observeEvent(input$check_code, {
     code <- input$user_code
     
+    # Extract DOI if present
+    doi_pattern <- "10\\.\\d{4,}/[-._;()/:A-Za-z0-9]+"
+    doi_matches <- regmatches(code, gregexpr(doi_pattern, code))
+    has_doi <- length(doi_matches[[1]]) > 0
+    
+    # Validate DOI if present
+    doi_validation <- NULL
+    if(has_doi) {
+      doi_validation <- validate_doi(doi_matches[[1]][1])
+    }
+    
     # Check for FAIR elements
     checks <- list(
       title = grepl("(?i)title", code),
@@ -368,16 +430,24 @@ server <- function(input, output, session) {
       orcid = grepl("(?i)orcid", code) || grepl("\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]", code),
       date = grepl("(?i)date", code),
       license = grepl("(?i)license", code),
-      doi = grepl("(?i)doi", code) || grepl("10\\.\\d{4,}/", code),
+      doi = has_doi,
+      doi_valid = if(has_doi) doi_validation$valid else FALSE,
       dependencies = grepl("(?i)(dependencies|library\\(|require\\()", code),
       comments = grepl("#.*[a-zA-Z]{10,}", code),
       url = grepl("(https?://|doi\\.org)", code),
       description = grepl("(?i)description:", code)
     )
     
-    passed <- sum(unlist(checks))
-    total <- length(checks)
+    # Calculate score (DOI validity is bonus, not required for base score)
+    base_checks <- checks[!names(checks) %in% c("doi_valid")]
+    passed <- sum(unlist(base_checks))
+    total <- length(base_checks)
     score <- round((passed / total) * 100)
+    
+    # Bonus points for valid DOI
+    if(checks$doi && checks$doi_valid) {
+      score <- min(100, score + 5)
+    }
     
     output$feedback_output <- renderUI({
       feedback_html <- paste0(
@@ -422,10 +492,20 @@ server <- function(input, output, session) {
         feedback_html <- paste0(feedback_html, "<li class='feedback-error'>❌ Add license (# License: MIT)</li>")
       }
       
+      # DOI validation feedback
       if(checks$doi) {
-        feedback_html <- paste0(feedback_html, "<li class='feedback-success'>✅ DOI or persistent identifier found</li>")
+        if(checks$doi_valid) {
+          feedback_html <- paste0(feedback_html, 
+                                  "<li class='feedback-success'>✅ DOI found and validated: ", 
+                                  doi_validation$doi, " 🎉</li>")
+        } else {
+          feedback_html <- paste0(feedback_html, 
+                                  "<li class='feedback-warning'>⚠️ DOI found but ", 
+                                  doi_validation$message, "</li>")
+        }
       } else {
-        feedback_html <- paste0(feedback_html, "<li class='feedback-error'>❌ Add DOI (# DOI: 10.5281/zenodo.1234567)</li>")
+        feedback_html <- paste0(feedback_html, 
+                                "<li class='feedback-error'>❌ Add DOI (# DOI: 10.5281/zenodo.1234567)</li>")
       }
       
       if(checks$dependencies) {
@@ -453,6 +533,17 @@ server <- function(input, output, session) {
       }
       
       feedback_html <- paste0(feedback_html, "</ul>")
+      
+      # Add DOI validation details if present
+      if(has_doi && !is.null(doi_validation)) {
+        doi_class <- if(doi_validation$valid) "doi-valid" else if(grepl("Cannot verify", doi_validation$message)) "doi-warning" else "doi-invalid"
+        feedback_html <- paste0(
+          feedback_html,
+          "<div class='doi-validation ", doi_class, "'>",
+          "<strong>DOI Validation:</strong> ", doi_validation$message,
+          "</div>"
+        )
+      }
       
       if(score == 100) {
         feedback_html <- paste0(
@@ -499,9 +590,27 @@ server <- function(input, output, session) {
         return(HTML("<p class='text-danger'>Please enter a valid URL or DOI.</p>"))
       }
       
-      HTML(paste0(
+      # Check if it's a DOI
+      doi_validation <- validate_doi(url)
+      
+      eval_html <- paste0(
         "<div class='alert alert-info'>",
-        "<h5>Evaluation Guide for: <code>", url, "</code></h5>",
+        "<h5>Evaluation for: <code>", url, "</code></h5>"
+      )
+      
+      # Add DOI validation if applicable
+      if(grepl("10\\.\\d{4,}/", url)) {
+        doi_class <- if(doi_validation$valid) "doi-valid" else if(grepl("Cannot verify", doi_validation$message)) "doi-warning" else "doi-invalid"
+        eval_html <- paste0(
+          eval_html,
+          "<div class='doi-validation ", doi_class, "' style='margin: 15px 0;'>",
+          "<strong>DOI Validation:</strong> ", doi_validation$message,
+          "</div>"
+        )
+      }
+      
+      eval_html <- paste0(
+        eval_html,
         "<p>When evaluating this resource for FAIRness, consider:</p>",
         "<h6><span class='principle-tag findable'>Findable</span></h6>",
         "<ul>",
@@ -529,7 +638,9 @@ server <- function(input, output, session) {
         "</ul>",
         "<p><strong>Tip:</strong> Use the FAIR assessment tools in the links above for detailed automated evaluation!</p>",
         "</div>"
-      ))
+      )
+      
+      HTML(eval_html)
     })
   })
 }

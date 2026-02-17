@@ -1,0 +1,32 @@
+{
+  "title": "ITRN2026 Workshop - Introduction to Data Visualization with Python",
+  "description": "Workshop materials for ITRN2026 conference focusing on Open Science practices",
+  "creators": [
+    {
+      "name": "Calignano, Giulia",
+      "affiliation": "Università di Padova",
+      "orcid": "0000-0002-2913-8770"
+    }
+  ],
+  "license": "Attribution-NonCommercial-NoDerivatives 4.0 International",
+  "keywords": [
+    "preregistration",
+    "R",
+    "fair",
+    "open data",
+    "open code",
+    "workshop",
+    "ITRN2026",
+  ],
+  "upload_type": "lesson",
+  "access_right": "open",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/caligiu/ITRN2026_workshop",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ],
+  "contributors": [],
+  "notes": "Workshop materials presented at ITRN2026 conference"
+}
